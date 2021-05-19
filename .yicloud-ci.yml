@@ -1,0 +1,58 @@
+stages:
+  - build
+  - publish
+  - deploy
+  
+variables:
+  CI_LABEL: test-update
+
+codebuild:
+  stage: build
+  image: registry.cn-hangzhou.aliyuncs.com/yiducloud-cicd/golang:1.11
+  script: |-
+    mkdir -p /go/src/github.com/rancher
+    ln -s `pwd` /go/src/github.com/rancher/pipeline-example-go
+    cd /go/src/github.com/rancher/pipeline-example-go
+    go build -o bin/hello-server
+    go test -cover
+
+pushimage:
+  stage: publish
+  dependencies: ["codebuild"]
+  image: registry.cn-hangzhou.aliyuncs.com/yiducloud-cicd/jenkins-docker-ci:17.12
+  dockerPublish:
+    dockerfilePath: ./Dockerfile
+    dockerTag: registry.cn-hangzhou.aliyuncs.com/yiducloud/example-helloserver
+    workPath: .
+  secretKeyRefs:
+  - ref:
+      env: CI_DOCKER_PASSWORD
+      key: password
+      name: ali-docker
+  variables:
+    CI_DOCKER_USERNAME: 一度云科技
+
+pushimage-test:
+  stage: publish
+  dependencies: ["codebuild"]
+  image: registry.cn-hangzhou.aliyuncs.com/yiducloud-cicd/jenkins-docker-ci:17.12
+  dockerPublish:
+    dockerfilePath: ./Dockerfile
+    dockerTag: registry.cn-hangzhou.aliyuncs.com/yiducloud/example-helloserver
+    workPath: .
+  secretKeyRefs:
+  - ref:
+      env: CI_DOCKER_PASSWORD
+      key: password
+      name: ali-docker
+  variables:
+    CI_DOCKER_USERNAME: 一度云科技
+
+deploypod:
+  stage: deploy
+  dependencies: ["pushimage"]
+  image: registry.cn-hangzhou.aliyuncs.com/yiducloud-cicd/pipeline-tools-ci:v0.1.9
+  deployment:
+    local: true
+    helm: false
+    configFile: ./deployment.yaml
